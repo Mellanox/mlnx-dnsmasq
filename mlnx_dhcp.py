@@ -146,3 +146,31 @@ class MlnxDnsmasq(dhcp.Dnsmasq):
         utils.replace_file(filename, buf.getvalue())
         LOG.debug(_('Done building host file %s'), filename)
         return filename
+
+    def _release_lease(self, mac_address, ip, client_id):
+        """Release a DHCP lease."""
+        cmd = ['dhcp_release', self.interface_name, ip, mac_address, client_id]
+        ip_wrapper = ip_lib.IPWrapper(self.root_helper,
+                                      self.network.namespace)
+        ip_wrapper.netns.execute(cmd)
+
+    def _read_hosts_file_leases(self, filename):
+        leases = set()
+        if os.path.exists(filename):
+            with open(filename) as f:
+                for l in f.readlines():
+                    host = l.strip().split(',')
+                    leases.add((host[3], host[0], host[1][3:]))
+        return leases
+
+    def _release_unused_leases(self):
+        filename = self.get_conf_file_name('host')
+        old_leases = self._read_hosts_file_leases(filename)
+
+        new_leases = set()
+        for port in self.network.ports:
+            for alloc in port.fixed_ips:
+                new_leases.add((alloc.ip_address, port.mac_address))
+
+        for ip, mac, client_id in old_leases - new_leases:
+            self._release_lease(mac, ip, client_id)
