@@ -17,7 +17,7 @@ import setuptools
 
 Name = 'mlnx-dnsmasq'
 Url = ""
-Version = '2014.2.1'
+Version = '2014.2.2'
 License = 'Apache License 2.0'
 Author = 'Mellanox'
 AuthorEmail = 'openstack@mellanox.com'
