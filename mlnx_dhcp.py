@@ -44,7 +44,6 @@ class MlnxDnsmasq(dhcp.Dnsmasq):
         should receive a dhcp lease, the hosts resolution in itself is
         defined by the `_output_addn_hosts_file` method.
         """
-        prefix = 'ff:00:00:00:00:00:02:00:00:02:c9:00:'
         buf = six.StringIO()
         filename = self.get_conf_file_name('host')
 
@@ -69,10 +68,7 @@ class MlnxDnsmasq(dhcp.Dnsmasq):
             if netaddr.valid_ipv6(ip_address):
                 ip_address = '[%s]' % ip_address
 
-            mac_first = port.mac_address[:8]
-            middle = ':00:00:'
-            mac_last = port.mac_address[9:]
-            client_id = ''.join([prefix, mac_first, middle, mac_last])
+            client_id = self._gen_client_id(port.mac_address)
 
             if getattr(port, 'extra_dhcp_opts', False):
                 buf.write('%s,id:%s,%s,%s,%s%s\n' %
@@ -93,6 +89,14 @@ class MlnxDnsmasq(dhcp.Dnsmasq):
         ip_wrapper = ip_lib.IPWrapper(namespace=self.network.namespace)
         ip_wrapper.netns.execute(cmd, run_as_root=True)
 
+    def _gen_client_id(self, mac_address):
+        prefix = 'ff:00:00:00:00:00:02:00:00:02:c9:00:'
+        mac_first = mac_address[:8]
+        middle = ':00:00:'
+        mac_last = mac_address[9:]
+        client_id = ''.join([prefix, mac_first, middle, mac_last])
+        return client_id
+
     def _read_hosts_file_leases(self, filename):
         leases = set()
         if os.path.exists(filename):
@@ -108,8 +112,9 @@ class MlnxDnsmasq(dhcp.Dnsmasq):
 
         new_leases = set()
         for port in self.network.ports:
+            client_id = self._gen_client_id(port.mac_address)
             for alloc in port.fixed_ips:
-                new_leases.add((alloc.ip_address, port.mac_address))
+                new_leases.add((alloc.ip_address, port.mac_address, client_id))
 
         for ip, mac, client_id in old_leases - new_leases:
             self._release_lease(mac, ip, client_id)
